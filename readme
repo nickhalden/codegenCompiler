@@ -1,0 +1,9 @@
+#commands for compiling and running
+//Using Make File
+make		
+cfp.ex <sample.fp
+
+//Manual Steps:
+flex FP.l;gcc lex.yy.c -ll -o cfp.exe;
+cfp.ex < sample.fp
+cfp.ex < test3.fp

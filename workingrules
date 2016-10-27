@@ -1,0 +1,6 @@
+
+PROGRAM : CONSTANTS CDEFS	 {printf("add action related to main three PARSED SUCCESSFULLY: \n ");}
+CDEFS :    /*empty*/{;}
+	| CDEFS CDEF        { printf("constatnts defined two\n");};
+CDEF :  OB CNAME SPARAM CB {printf("constants fully three \n");};
+CNAME : IDENTIFIER         {printf("cname points to identifier four %s\n",$1);};

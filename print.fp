@@ -1,0 +1,7 @@
+CONSTANTS
+
+FUNCTIONS
+
+MAIN
+{print x  f }
+

@@ -1,0 +1,24 @@
+yacc -d FP.y;flex FP.l;g++ lex.yy.c y.tab.c operations.cpp -o outputc++ --std=c++11;
+./outputc++ < sample.fp
+constant value is  5
+set at offset 1 the value x
+setting 000000 
+1 5constant value is  7
+set at offset 2 the value y
+setting 000000 
+2 7constant value is (this is a constant string)
+set at offset 3 the value z
+setting 000000 
+3(this is a constant string)----c
+read M[x]
+read M[{]
+add action related to main three PARSED SUCCESSFULLY: 
+ idetifier 	 occurance 	  	 offset 	 value
+ x  		  5     		 offset= 1	  5
+ y  		  2     		 offset= 2	  7
+ z  		  2     		 offset= 3	 (this is a constant string)
+ factorial  		  2     		 offset= 4	 
+ val  		  6     		 offset= 5	 
+ retval  		  5     		 offset= 6	 
+ f  		  2     		 offset= 7	 
+   		  0     		 offset= 0	 

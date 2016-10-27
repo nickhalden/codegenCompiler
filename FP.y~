@@ -1,0 +1,493 @@
+%{
+#include <stdio.h>     
+#include<iostream>
+#include <stdlib.h>
+#include <map>
+#include <unistd.h>
+#include <string.h>
+#include <string>
+#include "operations.h"
+
+extern void fileOpen();
+extern void fileClose();
+extern void initialisetable(char*,int);
+extern int offset;
+int funoffset=0;
+int vcounter=0;
+int newcount=1;
+extern int linecount;
+
+enum Atag { ADD,SUB,C,E};
+extern void functionStack();
+extern void functionStack(string,string,string);
+extern void readcodegen(string); //done
+extern void assignmentCodegen(char*,char*); //done
+extern void loopingStatement(char*);
+extern void twoPDFCodegen(char*,char*,char*); //done
+extern void processPrintQueue(char*); //done
+extern void pdfCodegen(char*);
+
+extern char* conditionals(char*,char*,char*);
+
+extern struct node* buildTree(char*);
+extern void processStack();
+int popcount=0;
+int readcount=0;
+extern void makeParent(char*,int);
+
+extern int printCounter;
+void setConstant(int,char*);
+
+
+using namespace std;
+
+extern void callme(char*);
+void codegen(char *);
+void yyerror (char *s);
+
+
+void codegen(char *);
+extern int lookup(char*);
+extern int yylex();
+extern int yylineno;
+extern char *yytext;
+extern int yywrap();
+extern int printSymbolTable();
+extern void printStack();
+
+
+struct table
+{
+        char name[20];
+        int occurance;
+        int size;
+        int offsetinfo;
+        char value[50];
+	    char *fargs[50];
+	    int firstAddress;	
+	     int nextline;
+        char caller[20];
+	    char type[20];
+        int elementNumber;
+	enum Atag tag;
+
+}st[100];
+
+typedef struct expression *expressionTree;
+typedef enum {PlusOp, MinusOp, TimesOp, DivideOp} optype;
+struct expression {
+enum {operatorExp, constantExp, variableExp} kind;
+union {
+struct {
+optype op;
+expressionTree left;
+expressionTree right;
+} oper;
+int constantval;
+char *variable;
+} u;
+};
+
+enum treetype {operator_node, number_node, variable_node};
+typedef struct tree {
+enum treetype nodetype;
+union{
+int a_number;
+char a_variable;
+struct {struct tree 
+	*left,
+	*right;
+	char opp;
+	} an_operator;
+}body;
+}tree;
+
+//new methods
+extern struct node* createNode(char*);
+extern struct node* createSibling(node*,node*);
+void gen(struct node*);
+
+%}
+
+%union {char val[50];int num;float decimal;char *ptr;struct node* new1;struct tree* a_tree;}       
+%token <val> CMP
+%token <val>READ
+%token <val>PRINT
+%token <val> LOOP
+%token <val>EQUALS
+%token <val> IDENTIFIER
+%token <val> FLOAT 
+%token <val> BOOLEAN 
+%token <val> NUMBER 
+%token <val> INTEGER
+%token <val> STRING  
+%token <val> MAIN FUNCTIONS RETURN CONSTANTS
+%token <val> IF THEN ELSE WHILE
+%token <val>  OB CB ASSGNMT COMP BOOLOP PDF TWOPDF MOD 
+
+
+%type <new1> PROGRAM  
+%type <val> CDEFS CDEF CNAME  SPARAM  
+%type <val> FDEFS FDEF FNAME ARGS ARG RETARG
+
+%type <new1> STATEMENTS STATEMENT ASSIGNSTAT PRINTSTAT READSTAT IFSTAT LOOPSTAT WHILESTAT
+%type <new1> IDENTIFIERS
+%type <new1> PARAM PARAMS 
+%type <new1> PRINT_PARAMS 
+%type <new1> PRINT_PARAM 
+%type <val> PARAM1 PARAM2 PARAM3 PARAM4
+%type <new1> FUNCALL 
+%type <val> FUNNAME
+%type <new1> EXP
+
+
+%start PROGRAM
+
+%right THEN ELSE
+
+%%
+
+/* YACC definations */
+PROGRAM : CONSTANTS CDEFS
+	  FUNCTIONS FDEFS 	   	
+	  MAIN STATEMENTS          {printf("PARSED SUCCESSFULLY: \n ");printStack();
+				   //printf("top of the wold %s \n",$6->name);
+				   $$=createNode($5);
+				   $$->child=$6;
+				   gen($$);
+				   newgen($$);
+				   //printf("top %s \n",$$->child->sib->sib->sib->sib->sib->child->child->sib->child->sib->name);
+				   };
+	  
+CDEFS :    /*empty*/{;}
+	| CDEFS CDEF        { ;};
+CDEF :  OB CNAME SPARAM CB {int pos=lookup($2);setConstant(pos,$3);};
+CNAME : IDENTIFIER         {;};
+SPARAM : INTEGER{;}
+ 	|STRING {;} 
+	|BOOLEAN {;}
+	| FLOAT {;} 
+        ; 
+
+FDEFS : {;}
+        |       FDEFS FDEF      {;};
+
+FDEF : OB FNAME ARGS RETURN RETARG STATEMENTS CB {strcpy(st[3].type,"f");
+						  st[funoffset].elementNumber=vcounter;
+						  };
+
+FNAME : IDENTIFIER         {funoffset=lookup($1);};
+
+
+ARGS : ARG	{ 	//char *abc=st[funoffset].fargs[vcounter];	
+			 char *p1 = $1;
+			 char *p2;
+			 p2=strdup(p1);
+			st[funoffset].fargs[vcounter]=p2;
+			printf("from the arg: %s \n",st[3].fargs[vcounter]);
+			vcounter=vcounter+1;
+			}
+|      ARGS ARG   {  
+			 char *p4 = $2;
+			 char *p5;
+			 p5=strdup(p4);
+			st[3].fargs[1]=p5;
+			printf("from the arg: %s \n",st[3].fargs[1]);
+			vcounter=vcounter+1;
+			};
+
+ARG: IDENTIFIER {;};
+
+RETARG : IDENTIFIER     {;};
+STATEMENTS :   {;}
+                |STATEMENTS STATEMENT   {/*$2->sib=$1;*///$1=$2;
+						//$$=$1;
+					if ($$ == NULL){
+                                	        //$1->sib = $2;
+                                        	$$=$2;
+						//printf("null rule to be applied %s \n",$$->name);
+                                       		}else{
+							if ($1->sib == NULL){
+								$1->sib=$2;
+							}else{
+								 struct node *head;
+                                                        	head=(struct node *)malloc(sizeof(node));
+                                                        	for(head=$1;head->sib!=NULL;head=head->sib){
+                                                       		 }
+                                                        	head->sib = $2;
+								}
+                                             		$$=$1;
+                                             		}
+						
+					};
+
+STATEMENT : ASSIGNSTAT {newcount=newcount+1;} 
+          | PRINTSTAT    {newcount=newcount+1;}   
+          | READSTAT  {$$=$1;newcount=newcount+1;}
+          | IFSTAT {newcount=newcount+1;}
+          | LOOPSTAT{newcount=newcount+1;}
+          | WHILESTAT {newcount=newcount+1;}
+          | EXP { newcount=newcount+1;};
+
+ASSIGNSTAT : OB EQUALS IDENTIFIER PARAM CB   {/*assignmentCodegen($3,$4)*/;
+						$$=createNode($2);
+						$$->child=createNode($3);// pass up
+					        $$->child->sib=$4; // sibling
+						//printf(" assingment %s\n", $$->child->sib->child->sib->name);
+					       };
+
+READSTAT : 	OB 
+		READ 
+		IDENTIFIERS
+		CB {
+			$$=createNode($2);
+			$$->child=$3;
+		   };
+		
+IDENTIFIERS : IDENTIFIER {
+			$$=createNode($1);
+			}
+	    | IDENTIFIERS IDENTIFIER {
+				
+				if ($1->sib == NULL){
+                                	$1->sib = createNode($2);
+                                        $$=$1;
+                                       }else{
+                                              struct node *head;
+                                               head=(struct node *)malloc(sizeof(node));
+                                               for(head=$1;head->sib!=NULL;head=head->sib){
+                                             	}
+                                             head->sib = createNode($2);
+                                             $$=$1;
+                                             }
+			 };
+
+PRINTSTAT : OB PRINT PRINT_PARAMS CB    {callme($4);makeParent($2,popcount);
+					$$=createNode($2);//printnode
+					$$->child=$3;
+					printf("child would be %s \n\n",$$->name);
+//					printf("child would be %s \n\n",$$->child->sib->sib->sib->sib->name);
+					};
+					
+PARAM : FUNCALL{/*rule1*/;} | 
+		IDENTIFIER{/*rule2*/;$$=createNode($1);} | 
+	    INTEGER {/*rule3*/;$$=createNode($1);}| 
+	    STRING {/*rule3*/;$$=createNode($1);} | 
+	    FLOAT   {/*rule3*/;$$=createNode($1);};
+					
+FUNCALL : OB FUNNAME PARAMS CB           {int post=lookup($2);
+					 if (post>0) 
+						{ st[post].nextline=linecount;
+					        };
+					 //printf(" funcall %s", $3->sib->sib->name);
+					 $$=createNode($2);
+                                         $$->child=$3;
+					// printf(" funcall %s\n", $$->child->sib->sib->name);
+                                         //$$->child->sib=createNode($4);
+
+					 }
+	| OB MOD PARAM1 PARAM2 CB	 {
+						//twoPDFCodegen($2,$3,$4);
+					  	$$=createNode($2);
+                                          	$$->child=createNode($3);
+                                         	$$->child->sib=createNode($4);
+					  }
+	| OB TWOPDF PARAM3 PARAM4 CB	 {
+					  //twoPDFCodegen($2,$3,$4);
+					  $$=createNode($2);
+					  $$->child=createNode($3);
+					  $$->child->sib=createNode($4);
+					 }
+	;
+PARAM1  :  INTEGER {;}| IDENTIFIER {;};
+PARAM2  :  INTEGER {;} | IDENTIFIER{;};
+PARAM3	:  INTEGER {;}| FLOAT {;}| IDENTIFIER {;};	
+PARAM4 	:  INTEGER {;}| FLOAT {;} | IDENTIFIER {;}; 
+
+FUNNAME :  IDENTIFIER {/*rule5*/;} 
+        |PDF  {pdfCodegen($1);/*rule5*/;}
+	;
+PARAMS:  {;}
+		| PARAMS PARAM              {/*pdfCodegen($2);*/; 
+					        if ($1 == NULL){
+							$$=$2;
+						}else{
+							if ($1->sib == NULL){
+                                                		$1->sib = $2;
+                                                		$$=$1;
+                                           		 }else{
+		                                              struct node *head;
+        	                                              head=(struct node *)malloc(sizeof(node));
+                       		                              for(head=$1;head->sib!=NULL;head=head->sib){
+                                      			          }
+                                            		       head->sib = $2;
+	                                             		$$=$1;
+							 }
+						}
+					     };
+PRINT_PARAMS : PRINT_PARAM {$$=$1;}
+	     | PRINT_PARAMS PRINT_PARAM   {
+					     printf("\n %s ",$$->name);
+					     if ($1->sib == NULL){
+						$1->sib = $2;
+						$$=$1;
+					  	}else{
+							struct node *head;
+ 							head=(struct node *)malloc(sizeof(node));
+							for(head=$1;head->sib!=NULL;head=head->sib){
+							}
+							head->sib = $2;
+							$$=$1;
+							}	
+							
+					    };
+
+PRINT_PARAM : IDENTIFIER {callme($1);buildTree($1);popcount=popcount+1;initialisetable($1,offset);
+			 $$=createNode($1);}
+	    |FLOAT {callme($1);buildTree($1);popcount=popcount+1;
+		    $$=createNode($1);}
+	    | STRING {callme($1);buildTree($1);popcount=popcount+1;
+			$$=createNode($1);} ;
+
+IFSTAT:  OB 		
+	 IF 
+	 EXP 
+	 THEN 
+	 STATEMENTS 
+	 CB {;}
+	| OB 
+	  IF
+	  EXP
+	  THEN 
+	  STATEMENTS 
+	  ELSE 
+	  STATEMENTS 
+	  CB {loopingStatement($2);printf("ccc\n\n");printf("exp is %s \n",$3->sib->sib->name);
+	     $$=createNode($2);
+	     $$->child=$3;
+	     $$->child->child=$5;
+	     $$->child->child->sib=$7;
+	     };
+
+LOOPSTAT: OB LOOP IDENTIFIER  STATEMENTS CB {;};
+WHILESTAT : OB WHILE EXP STATEMENTS CB {
+					printf("processing while \n");
+					$$=createNode($2);
+					$$->child=$3;
+					$$->child->child=$4;
+					printf("while sib %s \n",$4);
+					};
+EXP : OB CMP PARAM PARAM CB {/*conditionals($2,$3,$4)*/;
+				 $$=createNode($2);
+			         $$->sib=$3;
+			         $$->sib->sib=$4;
+				 //printf("cmp ka naam %s ",$2);
+				//$$->child=createNode($3);
+				}
+    | OB BOOLEAN CB {;};
+
+
+%%                   
+int main (int argc, char* argv[]) {
+fileOpen();
+yyparse ( );
+printSymbolTable();
+printf("main %s",st[1].fargs[0]);
+fileClose();
+return 0;
+}
+
+void setConstant(int pos,char constantValue[20]){
+//printf("at offset %d set value: %s\n",pos,constantValue);
+strcpy(st[pos].value,constantValue);
+}
+
+
+void yyerror (char *s) {fprintf (stderr, "%s\n", s);} 
+void codegen(char *statements){
+
+printf("assinment recorded %s\n",statements);
+}
+void newgen(struct node* root){
+	if (strcmp(root->name,"MAIN")==0){
+		struct node *mhead;
+                mhead=(struct node *)malloc(sizeof(node));
+		mhead=root->child;
+		for(mhead=root->child;mhead!=NULL;mhead=mhead->sib){
+			newgen(mhead);
+                 }
+	}
+	if (strcmp(root->name,"print")==0){
+		cout << newcount;
+		newcount =newcount +1;
+		cout << root->name << " ";
+		struct node *phead;
+                phead=(struct node *)malloc(sizeof(node));
+		for(phead=root->child;phead!=NULL;phead=phead->sib){
+			cout << phead->name <<" ";
+                 }
+		cout << endl;
+	}
+	 if (strcmp(root->name,"read")==0){
+		cout << root->name << " ";
+                struct node *rhead;
+                rhead=(struct node *)malloc(sizeof(node));
+                for(rhead=root->child;rhead!=NULL;rhead=rhead->sib){
+                        cout << rhead->name <<" ";
+                 }
+                cout << endl;
+        }
+	if (strcmp(root->name,"=")==0){
+		 cout << root->name << " ";
+                struct node *ahead;
+                ahead=(struct node *)malloc(sizeof(node));
+                for(ahead=root->child;ahead!=NULL;ahead=ahead->sib){
+			if (strcmp(ahead->name,"+")==0){
+			newgen(ahead);
+			}
+                        cout << ahead->name <<" ";
+                 }
+                cout << endl;
+	}
+	        if (strcmp(root->name,"while")==0){
+                 cout << root->name << " ";
+                struct node *ahead;
+                ahead=(struct node *)malloc(sizeof(node));
+                for(ahead=root->child;ahead!=NULL;ahead=ahead->sib){
+                        cout << ahead->name <<" ";
+                 }
+                cout << endl;
+        }
+	 if (strcmp(root->name,"+")==0){
+		 //cout << " add" ;
+                 cout << root->name << " ";
+                struct node *ahead;
+                ahead=(struct node *)malloc(sizeof(node));
+                for(ahead=root->child;ahead!=NULL;ahead=ahead->sib){
+                        cout << ahead->name <<" ";
+                 }
+                cout << endl;
+        }
+	if (strcmp(root->name,"*")==0){
+		 //cout << " add" ;
+                 cout << root->name << " ";
+                struct node *ahead;
+                ahead=(struct node *)malloc(sizeof(node));
+                for(ahead=root->child;ahead!=NULL;ahead=ahead->sib){
+                        cout << ahead->name <<" ";
+                 }
+                cout << endl;
+        }
+	if (strcmp(root->name,"if")==0){
+                 //cout << root->name << " ";
+                struct node *ahead;
+                ahead=(struct node *)malloc(sizeof(node));
+                for(ahead=root->child;ahead!=NULL;ahead=ahead->sib){
+                        cout << ahead->name <<" ";
+                 }
+                cout << endl;
+		cout << "if " ;
+        }
+
+
+}

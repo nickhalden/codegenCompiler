@@ -1,0 +1,6 @@
+1 < R[0] M[4] 0;
+4 > R[2] M[4] 0;
+5 MOD R[2] R[2] M[4]  1;
+6 if R[2]
+7 read M[1]
+8 print  (Factorial of) M[1] (is) M[6] (n) 
